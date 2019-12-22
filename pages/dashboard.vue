@@ -3,7 +3,7 @@
   <div v-else>
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
       <div class="container">
-        <div class="text-white">ログイン状況</div>
+        <div class="text-white">在籍中</div>
         <button class="btn btn-secondary" @click="doLogout()">
           ログアウト
         </button>
@@ -15,7 +15,7 @@
       </div>
     </nav>
     <div class="mt-4 px-4">
-      <h3>在籍中</h3>
+      <!-- <h3>在籍中</h3> -->
       <div v-for="(user, id) in users" :key="id" class="d-flex mt-3">
         <div class="w-25 mr-3">
           <img :src="user.image" class="img-fluid" />
@@ -67,12 +67,32 @@
         Copyright (c) 2019 - T.Shinohara
       </div>
     </div>
+    <b-modal v-model="modalShow" title="BootstrapVue" hide-header hide-footer>
+      <h2 class="my-4">エリア外です</h2>
+      <p>ラボ在籍システムから自動的にチェックアウトされます。</p>
+      <!-- <p><small>※画面を閉じてもチェックアウトされます。</small></p> -->
+      <nuxt-link
+        class="btn btn-success btn-block text-white"
+        to="/check"
+      >
+        <i class="fas fa-cog fa-fw"></i>
+        再チェックイン
+      </nuxt-link>
+      <button
+        class="btn btn-dark btn-block text-white"
+        @click="checkout(); modalShow = false"
+      >
+        <i class="fas fa-cog fa-fw"></i>
+        チェックアウト
+      </button>
+    </b-modal>
   </div>
 </template>
 
 <script>
 import { mapActions, mapGetters } from 'vuex'
 import firebase from '~/plugins/firebase'
+import location from '~/plugins/location'
 
 import loading from '~/components/Loading'
 
@@ -88,7 +108,8 @@ export default {
       users: [],
       checked: false,
       checkedId: '',
-      loading: true
+      loading: true,
+      modalShow: false
     }
   },
   computed: {
@@ -102,19 +123,6 @@ export default {
           this.$router.push('/')
         })
         .catch((err) => console.log(err))
-    },
-    async checkin() {
-      // let data = {
-      //   checkin: new Date(),
-      //   checkout: '',
-      //   id: this.getUserId,
-      //   name: this.getUser.displayName,
-      //   image: this.getUser.photoURL
-      // }
-      // let ref = await db.collection('checkin').add(data)
-      // this.getCheckUsers()
-      // this.getCheckStatus()
-
     },
     async checkout() {
       let data = {
@@ -163,11 +171,33 @@ export default {
             this.checkedId = data.id;
           })
         });
-      console.log(size)
       if (size > 0) {
         this.checked = true
       } else {
         this.checked = false
+      }
+    },
+    async getLocation(debugState = "") {
+      if(debugState != "") {
+        this.gps = debugState
+        return
+      }
+      try {
+        const position = await location.getLocation()
+        let vector = location.distance(
+          process.env.LOCATION_LAT,
+          process.env.LOCATION_LON,
+          position.coords.latitude,
+          position.coords.longitude
+        )
+        if (vector <= 60.0) {
+          this.gps = 'ok'
+        } else {
+          this.gps = 'outarea'
+        }
+      } catch (e) {
+        console.error(e)
+        this.gps = 'failed'
       }
     }
   },
@@ -176,8 +206,12 @@ export default {
       if (!this.isAuthenticated) {
         this.$router.push('/')
       }
-      this.getCheckUsers()
-      this.getCheckStatus()
+      await this.getCheckUsers()
+      await this.getCheckStatus()
+      await this.getLocation()
+      if( this.gps != 'ok' && this.checked == true ){
+        this.modalShow = true;
+      }
       this.loading = false
     })
   }

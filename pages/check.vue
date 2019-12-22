@@ -78,8 +78,6 @@ export default {
         checkin: new Date(),
         checkout: '',
         id: this.getUserId,
-        name: this.getUser.displayName,
-        image: this.getUser.photoURL
       }
       let ref = await db.collection('checkin').add(data)
       let users = await db
